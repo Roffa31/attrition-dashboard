@@ -84,9 +84,9 @@ shap_plot_type = st.sidebar.selectbox("Tipe plot SHAP", ["bar", "beeswarm"], ind
 # =========================
 # TABS
 # =========================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 HR Insights", "📥 Upload CSV Baru", 
-    "📌 Confusion Matrix", "🟢 LIME", "🟣 SHAP"
+    "📌 Confusion Matrix", "🟢 LIME", "🟣 SHAP", "💰 Cost Saving / ROI"
 ])
 
 # =========================
@@ -126,39 +126,6 @@ with tab1:
                 
         except Exception as e:
             st.error(f"Gagal membaca dataset HR: {e}")
-
-    # =========================
-    # COST SAVING / ROI DIPINDAH KE SINI
-    # =========================
-    st.subheader("💰 Potensi Penghematan Biaya Attrition")
-
-    cost_per_employee = st.number_input(
-        "Biaya turnover per karyawan (USD)", 
-        min_value=1000, 
-        value=4700,   # default sesuai asumsi
-        step=100
-    )
-    intervention_effectiveness = st.slider(
-        "Efektivitas intervensi HR (%)", 
-        0, 100, 50
-    )
-
-    cm = confusion_matrix(y_test, y_pred)
-    TP = cm[1, 1]  # Attrition yang benar terdeteksi
-    FN = cm[1, 0]  # Attrition yang tidak terdeteksi
-
-    potential_saving = TP * cost_per_employee * (intervention_effectiveness / 100)
-
-    st.metric("Jumlah Attrition terdeteksi (TP)", TP)
-    st.metric("Jumlah Attrition terlewat (FN)", FN)
-    st.metric("Potensi Saving (USD)", f"${potential_saving:,.0f}")
-
-    st.markdown(f"""
-    📌 **Interpretasi:**  
-    - Dengan biaya turnover per karyawan **${cost_per_employee:,.0f}**,  
-    - dan efektivitas intervensi **{intervention_effectiveness}%**,  
-    - maka HR berpotensi menghemat sebesar **${potential_saving:,.0f}**.  
-    """)
 
 # =========================
 # TAB 2 — Upload CSV Baru untuk Prediksi
@@ -252,25 +219,71 @@ with tab5:
         with st.spinner("Menghitung SHAP..."):
             try:
                 import shap
+                shap.initjs()
+                
                 X_sub = X_test_np[:int(shap_sample_size)]
                 explainer = shap.LinearExplainer(model, X_sub, feature_names=feature_names)
                 shap_values = explainer(X_sub)
                 
+                max_display = 15  # tampilkan top 15 fitur
+                
                 if shap_plot_type == "bar":
-                    shap.summary_plot(shap_values, X_sub, feature_names=feature_names, plot_type="bar", show=False)
+                    shap.summary_plot(
+                        shap_values, X_sub, feature_names=feature_names, 
+                        plot_type="bar", show=False, max_display=max_display
+                    )
                 else:
-                    shap.summary_plot(shap_values, X_sub, feature_names=feature_names, show=False)
+                    shap.summary_plot(
+                        shap_values, X_sub, feature_names=feature_names, 
+                        show=False, max_display=max_display
+                    )
                 
                 fig = plt.gcf()
-                plt.tight_layout()  # 🔥 perbaikan overlap
+                fig.set_size_inches(10, 8)
+                plt.tight_layout()
                 st.pyplot(fig)
+
             except Exception as e:
                 st.error(f"Gagal menghitung/menampilkan SHAP: {e}")
+
+# =========================
+# TAB 6 — Cost Saving / ROI
+# =========================
+with tab6:
+    st.subheader("💰 Potensi Penghematan Biaya Attrition")
+
+    cost_per_employee = st.number_input(
+        "Biaya turnover per karyawan (USD)", 
+        min_value=1000, 
+        value=4700,   # default sesuai asumsi
+        step=100
+    )
+    intervention_effectiveness = st.slider(
+        "Efektivitas intervensi HR (%)", 
+        0, 100, 50
+    )
+
+    cm = confusion_matrix(y_test, y_pred)
+    TP = cm[1, 1]  # Attrition yang benar terdeteksi
+    FN = cm[1, 0]  # Attrition yang tidak terdeteksi
+
+    potential_saving = TP * cost_per_employee * (intervention_effectiveness / 100)
+
+    st.metric("Jumlah Attrition terdeteksi (TP)", TP)
+    st.metric("Jumlah Attrition terlewat (FN)", FN)
+    st.metric("Potensi Saving (USD)", f"${potential_saving:,.0f}")
+
+    st.markdown(f"""
+    📌 **Interpretasi:**  
+    - Dengan biaya turnover per karyawan **${cost_per_employee:,.0f}**,  
+    - dan efektivitas intervensi **{intervention_effectiveness}%**,  
+    - maka HR berpotensi menghemat sebesar **${potential_saving:,.0f}**.  
+    """)
 
 # =========================
 # FOOTNOTE
 # =========================
 st.caption(
     "Tip: untuk prediksi batch, gunakan tab 'Upload CSV Baru'. "
-    "Untuk analisis pola HR & ROI, gunakan tab 'HR Insights'."
+    "Untuk analisis pola HR, gunakan tab 'HR Insights'."
 )
