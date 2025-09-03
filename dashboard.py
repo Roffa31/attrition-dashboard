@@ -8,8 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import (
-    confusion_matrix, classification_report, roc_curve,
-    precision_recall_curve, auc, fbeta_score, accuracy_score, f1_score
+    confusion_matrix, classification_report,
+    fbeta_score, accuracy_score, f1_score
 )
 from lime.lime_tabular import LimeTabularExplainer
 
@@ -44,14 +44,6 @@ def load_artifacts():
     return np.asarray(X_test_scaled), y_test, y_proba_best, best_log_reg, feature_names
 
 X_test_np, y_test, y_proba_best, model, feature_names = load_artifacts()
-
-@st.cache_data(show_spinner=False)
-def compute_curves(y_true, y_proba):
-    fpr, tpr, _ = roc_curve(y_true, y_proba)
-    precision, recall, _ = precision_recall_curve(y_true, y_proba)
-    roc_auc = auc(fpr, tpr)
-    pr_auc = auc(recall, precision)
-    return fpr, tpr, precision, recall, roc_auc, pr_auc
 
 @st.cache_resource(show_spinner=False)
 def get_lime_explainer(X_train, feature_names):
@@ -92,9 +84,9 @@ shap_plot_type = st.sidebar.selectbox("Tipe plot SHAP", ["bar", "beeswarm"], ind
 # =========================
 # TABS
 # =========================
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "📊 HR Insights", "📥 Upload CSV Baru", "📌 Confusion Matrix", 
-    "📈 ROC Curve", "📊 Precision-Recall", "🟢 LIME", "🟣 SHAP"
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📊 HR Insights", "📥 Upload CSV Baru", 
+    "📌 Confusion Matrix", "🟢 LIME", "🟣 SHAP"
 ])
 
 # =========================
@@ -134,6 +126,39 @@ with tab1:
                 
         except Exception as e:
             st.error(f"Gagal membaca dataset HR: {e}")
+
+    # =========================
+    # COST SAVING / ROI DIPINDAH KE SINI
+    # =========================
+    st.subheader("💰 Potensi Penghematan Biaya Attrition")
+
+    cost_per_employee = st.number_input(
+        "Biaya turnover per karyawan (USD)", 
+        min_value=1000, 
+        value=4700,   # default sesuai asumsi
+        step=100
+    )
+    intervention_effectiveness = st.slider(
+        "Efektivitas intervensi HR (%)", 
+        0, 100, 50
+    )
+
+    cm = confusion_matrix(y_test, y_pred)
+    TP = cm[1, 1]  # Attrition yang benar terdeteksi
+    FN = cm[1, 0]  # Attrition yang tidak terdeteksi
+
+    potential_saving = TP * cost_per_employee * (intervention_effectiveness / 100)
+
+    st.metric("Jumlah Attrition terdeteksi (TP)", TP)
+    st.metric("Jumlah Attrition terlewat (FN)", FN)
+    st.metric("Potensi Saving (USD)", f"${potential_saving:,.0f}")
+
+    st.markdown(f"""
+    📌 **Interpretasi:**  
+    - Dengan biaya turnover per karyawan **${cost_per_employee:,.0f}**,  
+    - dan efektivitas intervensi **{intervention_effectiveness}%**,  
+    - maka HR berpotensi menghemat sebesar **${potential_saving:,.0f}**.  
+    """)
 
 # =========================
 # TAB 2 — Upload CSV Baru untuk Prediksi
@@ -192,48 +217,9 @@ with tab3:
     """)
 
 # =========================
-# TAB 4 — ROC Curve
+# TAB 4 — LIME
 # =========================
 with tab4:
-    st.subheader("ROC Curve")
-    fpr, tpr, _, _, roc_auc, _ = compute_curves(y_test, y_proba_best)
-    st.markdown(f"**ROC AUC:** {roc_auc:.3f}")
-    fig, ax = plt.subplots()
-    ax.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
-    ax.plot([0, 1], [0, 1], "k--", linewidth=1)
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate")
-    ax.legend()
-    st.pyplot(fig)
-    st.markdown("""
-    📌 **Interpretasi:**  
-    - ROC AUC mengukur kemampuan model membedakan "Stay" dan "Attrition".  
-    - Semakin mendekati 1.0, semakin baik model.  
-    """)
-
-# =========================
-# TAB 5 — Precision-Recall Curve
-# =========================
-with tab5:
-    st.subheader("Precision-Recall Curve")
-    _, _, precision, recall, _, pr_auc = compute_curves(y_test, y_proba_best)
-    st.markdown(f"**PR AUC:** {pr_auc:.3f}")
-    fig, ax = plt.subplots()
-    ax.plot(recall, precision, label=f"PR AUC = {pr_auc:.3f}")
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
-    ax.legend()
-    st.pyplot(fig)
-    st.markdown("""
-    📌 **Interpretasi:**  
-    - Kurva ini relevan untuk data imbalance.  
-    - Fokus HR sebaiknya di Recall tinggi, meski Precision sedikit turun.  
-    """)
-
-# =========================
-# TAB 6 — LIME
-# =========================
-with tab6:
     st.subheader("LIME Explanation (on-demand)")
     st.write("Klik tombol di bawah untuk menghitung LIME untuk 1 sampel dari dataset test.")
     
@@ -255,9 +241,9 @@ with tab6:
                 st.error(f"Gagal menghitung LIME: {e}")
 
 # =========================
-# TAB 7 — SHAP
+# TAB 5 — SHAP
 # =========================
-with tab7:
+with tab5:
     st.subheader("SHAP Summary (on-demand)")
     st.write("Klik tombol di bawah untuk menghitung SHAP pada subset data test.")
     
@@ -276,6 +262,7 @@ with tab7:
                     shap.summary_plot(shap_values, X_sub, feature_names=feature_names, show=False)
                 
                 fig = plt.gcf()
+                plt.tight_layout()  # 🔥 perbaikan overlap
                 st.pyplot(fig)
             except Exception as e:
                 st.error(f"Gagal menghitung/menampilkan SHAP: {e}")
@@ -285,5 +272,5 @@ with tab7:
 # =========================
 st.caption(
     "Tip: untuk prediksi batch, gunakan tab 'Upload CSV Baru'. "
-    "Untuk analisis pola HR, gunakan tab 'HR Insights'."
+    "Untuk analisis pola HR & ROI, gunakan tab 'HR Insights'."
 )
