@@ -16,9 +16,9 @@ from lime.lime_tabular import LimeTabularExplainer
 # =========================
 # STREAMLIT PAGE SETTINGS
 # =========================
-st.set_page_config(page_title="Attrition Prediction Dashboard", layout="wide")
-st.title("📊 Attrition Prediction Dashboard")
-st.caption("Logistic Regression (Tuned + F2-optimized) — with LIME & SHAP explanations")
+st.set_page_config(page_title="HR Attrition Dashboard", layout="wide")
+st.title("👩‍💼 HR Attrition Dashboard")
+st.caption("Logistic Regression (Tuned + F2-optimized) — dengan interpretasi HR, LIME & SHAP")
 
 # =========================
 # HELPERS & CACHING
@@ -92,13 +92,13 @@ shap_plot_type = st.sidebar.selectbox("Tipe plot SHAP", ["bar", "beeswarm"], ind
 # =========================
 # TABS
 # =========================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📥 Upload CSV + Confusion Matrix", "📈 ROC Curve", "📊 Precision-Recall",
-    "🟢 LIME", "🟣 SHAP", "📊 Probabilitas Prediksi"
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "📥 Upload CSV Baru", "📌 Confusion Matrix", "📈 ROC Curve", 
+    "📊 Precision-Recall", "🟢 LIME", "🟣 SHAP", "📊 HR Insights"
 ])
 
 # =========================
-# TAB 1 — Upload CSV + Confusion Matrix
+# TAB 1 — Upload CSV Baru untuk Prediksi
 # =========================
 with tab1:
     st.subheader("Upload CSV Baru untuk Prediksi Batch")
@@ -119,6 +119,7 @@ with tab1:
                 
                 st.dataframe(new_data)
                 
+                # Histogram probabilitas baru
                 fig, ax = plt.subplots()
                 ax.hist(new_proba, bins=20, alpha=0.7, color="orange")
                 ax.axvline(threshold, color="red", linestyle="--", label="Threshold")
@@ -126,13 +127,15 @@ with tab1:
                 ax.set_ylabel("Count")
                 ax.legend()
                 st.pyplot(fig)
-
-                st.markdown("> Interpretasi: Histogram ini menunjukkan distribusi probabilitas attrition dari data baru. Semakin banyak data di sisi kanan threshold → semakin tinggi prediksi attrition.")
-
+                
         except Exception as e:
             st.error(f"Gagal membaca CSV baru: {e}")
 
-    st.subheader("Confusion Matrix & Metrics (Data Test)")
+# =========================
+# TAB 2 — Confusion Matrix + Metrics
+# =========================
+with tab2:
+    st.subheader("Confusion Matrix & Metrics")
     cm = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots()
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
@@ -140,16 +143,20 @@ with tab1:
     ax.set_xlabel("Predicted")
     ax.set_ylabel("Actual")
     st.pyplot(fig)
-
-    st.markdown("**Classification Report (Data Test)**")
+    
+    st.markdown("**Classification Report**")
     st.text(classification_report(y_test, y_pred, target_names=["Stay", "Attrition"]))
-
-    st.markdown("> Interpretasi: Confusion matrix membantu melihat jumlah karyawan yang diprediksi benar/ salah sebagai 'Stay' atau 'Attrition'. Classification report menampilkan precision, recall, F1-score untuk evaluasi menyeluruh.")
+    st.markdown("""
+    📌 **Interpretasi:**  
+    - Confusion Matrix menunjukkan jumlah prediksi benar/salah.  
+    - HR bisa lihat berapa banyak karyawan attrition yang berhasil terdeteksi.  
+    - Fokus pada Recall Attrition karena lebih penting untuk mendeteksi risiko keluar.  
+    """)
 
 # =========================
-# TAB 2 — ROC Curve
+# TAB 3 — ROC Curve
 # =========================
-with tab2:
+with tab3:
     st.subheader("ROC Curve")
     fpr, tpr, _, _, roc_auc, _ = compute_curves(y_test, y_proba_best)
     st.markdown(f"**ROC AUC:** {roc_auc:.3f}")
@@ -160,13 +167,16 @@ with tab2:
     ax.set_ylabel("True Positive Rate")
     ax.legend()
     st.pyplot(fig)
-
-    st.markdown("> Interpretasi: ROC Curve menggambarkan trade-off antara sensitivitas (recall) dan specificity. AUC mendekati 1 berarti model semakin baik membedakan antara Stay dan Attrition.")
+    st.markdown("""
+    📌 **Interpretasi:**  
+    - ROC AUC mengukur kemampuan model membedakan "Stay" dan "Attrition".  
+    - Semakin mendekati 1.0, semakin baik model.  
+    """)
 
 # =========================
-# TAB 3 — Precision-Recall Curve
+# TAB 4 — Precision-Recall Curve
 # =========================
-with tab3:
+with tab4:
     st.subheader("Precision-Recall Curve")
     _, _, precision, recall, _, pr_auc = compute_curves(y_test, y_proba_best)
     st.markdown(f"**PR AUC:** {pr_auc:.3f}")
@@ -176,13 +186,16 @@ with tab3:
     ax.set_ylabel("Precision")
     ax.legend()
     st.pyplot(fig)
-
-    st.markdown("> Interpretasi: Precision-Recall Curve lebih relevan untuk data imbalance seperti attrition. PR AUC tinggi menunjukkan model lebih baik menyeimbangkan antara menemukan karyawan yang benar-benar resign (recall) dan mengurangi false alarm (precision).")
+    st.markdown("""
+    📌 **Interpretasi:**  
+    - Kurva ini relevan untuk data imbalance.  
+    - Fokus HR sebaiknya di Recall tinggi, meski Precision sedikit turun.  
+    """)
 
 # =========================
-# TAB 4 — LIME
+# TAB 5 — LIME
 # =========================
-with tab4:
+with tab5:
     st.subheader("LIME Explanation (on-demand)")
     st.write("Klik tombol di bawah untuk menghitung LIME untuk 1 sampel dari dataset test.")
     
@@ -200,14 +213,13 @@ with tab4:
                     num_samples=int(lime_num_samples)
                 )
                 st.components.v1.html(exp.as_html(), height=800)
-                st.markdown("> Interpretasi: LIME menunjukkan fitur mana yang paling memengaruhi prediksi attrition pada sampel terpilih.")
             except Exception as e:
                 st.error(f"Gagal menghitung LIME: {e}")
 
 # =========================
-# TAB 5 — SHAP
+# TAB 6 — SHAP
 # =========================
-with tab5:
+with tab6:
     st.subheader("SHAP Summary (on-demand)")
     st.write("Klik tombol di bawah untuk menghitung SHAP pada subset data test.")
     
@@ -227,30 +239,51 @@ with tab5:
                 
                 fig = plt.gcf()
                 st.pyplot(fig)
-                st.markdown("> Interpretasi: SHAP memperlihatkan kontribusi setiap fitur terhadap prediksi model, baik secara global maupun lokal.")
             except Exception as e:
                 st.error(f"Gagal menghitung/menampilkan SHAP: {e}")
 
 # =========================
-# TAB 6 — Histogram Probabilitas Prediksi
+# TAB 7 — HR Insights
 # =========================
-with tab6:
-    st.subheader("Distribusi Probabilitas Prediksi")
-    fig, ax = plt.subplots()
-    ax.hist(y_proba_best[y_test==0], bins=20, alpha=0.6, label="Stay")
-    ax.hist(y_proba_best[y_test==1], bins=20, alpha=0.6, label="Attrition")
-    ax.axvline(threshold, color="red", linestyle="--", label="Threshold")
-    ax.set_xlabel("Predicted Probability")
-    ax.set_ylabel("Count")
-    ax.legend()
-    st.pyplot(fig)
-
-    st.markdown("> Interpretasi: Grafik ini menunjukkan distribusi probabilitas prediksi untuk kelas Stay dan Attrition. Threshold menentukan batas keputusan model antara dua kelas tersebut.")
+with tab7:
+    st.subheader("HR Insights 📊")
+    st.write("Upload dataset HR mentah untuk melihat analisis tambahan (misalnya attrition by Department, JobRole, Gender, dll).")
+    
+    hr_file = st.file_uploader("Upload dataset HR mentah", type="csv", key="hr_insights")
+    if hr_file is not None:
+        try:
+            hr_data = pd.read_csv(hr_file)
+            st.dataframe(hr_data.head())
+            
+            if "Attrition" not in hr_data.columns:
+                st.error("Dataset HR harus memiliki kolom `Attrition` (Yes/No).")
+            else:
+                categorical_cols = ["Department", "JobRole", "Gender", "MaritalStatus", "OverTime", "EducationField"]
+                numeric_cols = ["Age", "MonthlyIncome"]
+                
+                for col in categorical_cols:
+                    if col in hr_data.columns:
+                        st.markdown(f"### Attrition by {col}")
+                        fig, ax = plt.subplots()
+                        sns.countplot(data=hr_data, x=col, hue="Attrition", ax=ax)
+                        ax.set_ylabel("Count")
+                        plt.xticks(rotation=45)
+                        st.pyplot(fig)
+                
+                for col in numeric_cols:
+                    if col in hr_data.columns:
+                        st.markdown(f"### Distribusi {col} berdasarkan Attrition")
+                        fig, ax = plt.subplots()
+                        sns.boxplot(data=hr_data, x="Attrition", y=col, ax=ax)
+                        st.pyplot(fig)
+                
+        except Exception as e:
+            st.error(f"Gagal membaca dataset HR: {e}")
 
 # =========================
 # FOOTNOTE
 # =========================
 st.caption(
-    "Tip: jika masih terasa lambat, kecilkan 'Num samples (LIME)' dan 'Jumlah sampel SHAP' di sidebar. "
-    "LIME/SHAP dihitung hanya saat tombol ditekan."
+    "Tip: untuk prediksi batch, gunakan tab 'Upload CSV Baru'. "
+    "Untuk analisis pola HR, gunakan tab 'HR Insights'."
 )
