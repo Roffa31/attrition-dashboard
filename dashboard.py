@@ -92,16 +92,47 @@ shap_plot_type = st.sidebar.selectbox("Tipe plot SHAP", ["bar", "beeswarm"], ind
 # =========================
 # TABS
 # =========================
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "📌 Confusion Matrix", "📈 ROC Curve", "📊 Precision-Recall",
-    "🟢 LIME", "🟣 SHAP", "📊 Probabilitas Prediksi", "📥 Upload CSV Baru"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📥 Upload CSV + Confusion Matrix", "📈 ROC Curve", "📊 Precision-Recall",
+    "🟢 LIME", "🟣 SHAP", "📊 Probabilitas Prediksi"
 ])
 
 # =========================
-# TAB 1 — Confusion Matrix + Metrics
+# TAB 1 — Upload CSV + Confusion Matrix
 # =========================
 with tab1:
-    st.subheader("Confusion Matrix & Metrics")
+    st.subheader("Upload CSV Baru untuk Prediksi Batch")
+    uploaded_file = st.file_uploader("Upload CSV baru (kolom harus sama dengan fitur model)", type="csv")
+    
+    if uploaded_file is not None:
+        try:
+            new_data = pd.read_csv(uploaded_file)
+            
+            if list(new_data.columns) != feature_names:
+                st.error("Kolom CSV tidak sesuai dengan fitur model!")
+            else:
+                new_X = new_data.values
+                new_proba = model.predict_proba(new_X)[:, 1]
+                new_pred = (new_proba >= threshold).astype(int)
+                new_data["Prob_Attrition"] = new_proba
+                new_data["Prediksi"] = np.where(new_pred==1, "Attrition", "Stay")
+                
+                st.dataframe(new_data)
+                
+                fig, ax = plt.subplots()
+                ax.hist(new_proba, bins=20, alpha=0.7, color="orange")
+                ax.axvline(threshold, color="red", linestyle="--", label="Threshold")
+                ax.set_xlabel("Predicted Probability")
+                ax.set_ylabel("Count")
+                ax.legend()
+                st.pyplot(fig)
+
+                st.markdown("> Interpretasi: Histogram ini menunjukkan distribusi probabilitas attrition dari data baru. Semakin banyak data di sisi kanan threshold → semakin tinggi prediksi attrition.")
+
+        except Exception as e:
+            st.error(f"Gagal membaca CSV baru: {e}")
+
+    st.subheader("Confusion Matrix & Metrics (Data Test)")
     cm = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots()
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
@@ -109,9 +140,11 @@ with tab1:
     ax.set_xlabel("Predicted")
     ax.set_ylabel("Actual")
     st.pyplot(fig)
-    
-    st.markdown("**Classification Report**")
+
+    st.markdown("**Classification Report (Data Test)**")
     st.text(classification_report(y_test, y_pred, target_names=["Stay", "Attrition"]))
+
+    st.markdown("> Interpretasi: Confusion matrix membantu melihat jumlah karyawan yang diprediksi benar/ salah sebagai 'Stay' atau 'Attrition'. Classification report menampilkan precision, recall, F1-score untuk evaluasi menyeluruh.")
 
 # =========================
 # TAB 2 — ROC Curve
@@ -128,6 +161,8 @@ with tab2:
     ax.legend()
     st.pyplot(fig)
 
+    st.markdown("> Interpretasi: ROC Curve menggambarkan trade-off antara sensitivitas (recall) dan specificity. AUC mendekati 1 berarti model semakin baik membedakan antara Stay dan Attrition.")
+
 # =========================
 # TAB 3 — Precision-Recall Curve
 # =========================
@@ -141,6 +176,8 @@ with tab3:
     ax.set_ylabel("Precision")
     ax.legend()
     st.pyplot(fig)
+
+    st.markdown("> Interpretasi: Precision-Recall Curve lebih relevan untuk data imbalance seperti attrition. PR AUC tinggi menunjukkan model lebih baik menyeimbangkan antara menemukan karyawan yang benar-benar resign (recall) dan mengurangi false alarm (precision).")
 
 # =========================
 # TAB 4 — LIME
@@ -163,6 +200,7 @@ with tab4:
                     num_samples=int(lime_num_samples)
                 )
                 st.components.v1.html(exp.as_html(), height=800)
+                st.markdown("> Interpretasi: LIME menunjukkan fitur mana yang paling memengaruhi prediksi attrition pada sampel terpilih.")
             except Exception as e:
                 st.error(f"Gagal menghitung LIME: {e}")
 
@@ -189,6 +227,7 @@ with tab5:
                 
                 fig = plt.gcf()
                 st.pyplot(fig)
+                st.markdown("> Interpretasi: SHAP memperlihatkan kontribusi setiap fitur terhadap prediksi model, baik secara global maupun lokal.")
             except Exception as e:
                 st.error(f"Gagal menghitung/menampilkan SHAP: {e}")
 
@@ -206,41 +245,7 @@ with tab6:
     ax.legend()
     st.pyplot(fig)
 
-# =========================
-# TAB 7 — Upload CSV Baru
-# =========================
-with tab7:
-    st.subheader("Upload CSV Baru untuk Prediksi Batch")
-    uploaded_file = st.file_uploader("Upload CSV baru (kolom harus sama dengan fitur model)", type="csv")
-    
-    if uploaded_file is not None:
-        try:
-            new_data = pd.read_csv(uploaded_file)
-            
-            if list(new_data.columns) != feature_names:
-                st.error("Kolom CSV tidak sesuai dengan fitur model!")
-            else:
-                new_X = new_data.values
-                new_proba = model.predict_proba(new_X)[:, 1]
-                new_pred = (new_proba >= threshold).astype(int)
-                new_data["Prob_Attrition"] = new_proba
-                new_data["Prediksi"] = np.where(new_pred==1, "Attrition", "Stay")
-                
-                st.dataframe(new_data)
-                
-                # Histogram probabilitas baru
-                fig, ax = plt.subplots()
-                ax.hist(new_proba, bins=20, alpha=0.7, color="orange")
-                ax.axvline(threshold, color="red", linestyle="--", label="Threshold")
-                ax.set_xlabel("Predicted Probability")
-                ax.set_ylabel("Count")
-                ax.legend()
-                st.pyplot(fig)
-                
-                st.markdown("⚠️ Untuk LIME/SHAP, pilih beberapa sampel dari CSV baru secara manual.")
-                
-        except Exception as e:
-            st.error(f"Gagal membaca CSV baru: {e}")
+    st.markdown("> Interpretasi: Grafik ini menunjukkan distribusi probabilitas prediksi untuk kelas Stay dan Attrition. Threshold menentukan batas keputusan model antara dua kelas tersebut.")
 
 # =========================
 # FOOTNOTE
